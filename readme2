@@ -1,568 +1,144 @@
-Senaryo 2 — İki Thread 300ms Arayla
 
-"İki farklı thread oluşturup 300ms arayla çalıştırın, sıranın değiştiğini gözlemleyin."
-csharpusing System;
-using System.Threading;
-
-class Program
-{
-    static void Main()
-    {
-        Thread t1 = new Thread(() =>
-        {
-            for (int i = 1; i <= 5; i++)
-            {
-                Console.WriteLine($"Thread 1 → Adım {i}");
-                Thread.Sleep(300);
-            }
-        });
-
-        Thread t2 = new Thread(() =>
-        {
-            for (int i = 1; i <= 5; i++)
-            {
-                Console.WriteLine($"Thread 2 → Adım {i}");
-                Thread.Sleep(300);
-            }
-        });
-
-        t1.Start();
-        Thread.Sleep(300); // t2'yi 300ms geç başlat
-        t2.Start();
-
-        t1.Join();
-        t2.Join();
-
-        Console.WriteLine("Tüm thread'ler tamamlandı.");
-        Console.ReadLine();
-    }
-}
+         Veritabani.cs
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Senaryo 3 — Join Kullanımı
-
-"İki thread oluşturun, ikisi de bittikten sonra 'Tüm işlemler bitti' yazsın."
-
-csharpusing System;
-using System.Threading;
-
-class Program
-{
-    static void Main()
-    {
-        Thread t1 = new Thread(() =>
-        {
-            Console.WriteLine("Thread 1 başladı");
-            Thread.Sleep(1000);
-            Console.WriteLine("Thread 1 bitti");
-        });
-
-        Thread t2 = new Thread(() =>
-        {
-            Console.WriteLine("Thread 2 başladı");
-            Thread.Sleep(500);
-            Console.WriteLine("Thread 2 bitti");
-        });
-
-        t1.Start();
-        t2.Start();
-
-        t1.Join(); // t1 bitene kadar bekle
-        t2.Join(); // t2 bitene kadar bekle
-
-        Console.WriteLine("Tüm işlemler bitti.");
-        Console.ReadLine();
-    }
-},
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Zor Seviye Soru Senaryosu: "Banka Hesabı Simülasyonu"
-Soru: Bir banka hesabı simülasyonu yapınız. Hesaba aynı anda iki farklı Thread üzerinden para yatırılacaktır.
-
-Thread 1: Hesaba 1000 defa 1 TL yatıracak.
-
-Thread 2: Hesaba 1000 defa 1 TL yatıracak.
-
-lock mekanizması kullanmadan kodu yazıp sonucun neden her seferinde 2000 çıkmadığını (Race Condition) açıklayınız.
-
-lock kullanarak veri güvenliğini sağlayınız ve sonucun tam 2000 çıkmasını garanti ediniz.
-
-Kod Çözümü (C#)
-C#
 using System;
-using System.Threading;
+using System.Data;
+using Microsoft.Data.SqlClient;
 
-class BankaHesabi
+namespace MarketYonetim
 {
-    private int bakiye = 0;
-    private static object kilitNesnesi = new object(); // Kritik bölgeyi korumak için
-
-    public void ParaYatir()
+    public enum IslemTipi
     {
-        for (int i = 0; i < 1000; i++)
-        {
-            // ZOR KISIM: Eğer buradaki lock'ı kaldırırsanız, 
-            // iki thread aynı anda bakiyeyi okuyup üzerine yazar ve veri kaybolur.
-            lock (kilitNesnesi) 
-            {
-                bakiye = bakiye + 1;
-            }
-            
-            // İşlemci geçişlerini zorlamak ve hatayı görmek için çok kısa bekleme
-            // Thread.Sleep(1); 
-        }
+        Listele, Ekle, Sil, Guncelle, Ara
     }
 
-    public int BakiyeGetir() => bakiye;
-}
-
-class Program
-{
-    static void Main()
+    public class Veritabani
     {
-        BankaHesabi hesap = new BankaHesabi();
+        private string cs = @"Server=.\SQLEXPRESS;Database=MarketDB;Trusted_Connection=True;TrustServerCertificate=True;";
 
-        // İki farklı thread aynı metodu çalıştırıyor
-        Thread t1 = new Thread(hesap.ParaYatir);
-        Thread t2 = new Thread(hesap.ParaYatir);
-
-        t1.Start();
-        t2.Start();
-
-        // ZOR KISIM: Join kullanmazsanız, threadler bitmeden 
-        // ekrana sonucu yazdırır ve sonucu 0 veya çok küçük görürsünüz.
-        t1.Join(); 
-        t2.Join();
-
-        Console.WriteLine("Sonuç Bakiye: " + hesap.BakiyeGetir());
-        Console.ReadLine();
-    }
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Senaryo A
-
-"İki thread oluşturun. Thread 1 tek sayıları, Thread 2 çift sayıları 1-10 arasında yazdırsın. 400ms arayla başlatın, Join ile bekleyin."
-
-csharpusing System;
-using System.Threading;
-
-class Program
-{
-    static void Main(string[] args)
-    {
-        Thread thread1 = new Thread(() =>
+        // SELECT → DataTable döndürür
+        public DataTable TabloDoldur(string sql, params object[] p)
         {
-            for (int i = 1; i <= 10; i += 2)
+            DataTable dt = new DataTable();
+            using (SqlConnection conn = new SqlConnection(cs))
+            using (SqlCommand cmd = new SqlCommand(sql, conn))
             {
-                Console.WriteLine($"Thread 1 (tek) → {i}");
-                Thread.Sleep(400);
+                for (int i = 0; i < p.Length; i++)
+                    cmd.Parameters.AddWithValue("@p" + i, p[i]);
+
+                conn.Open();
+                new SqlDataAdapter(cmd).Fill(dt);
             }
-        });
-
-        Thread thread2 = new Thread(() =>
-        {
-            for (int i = 2; i <= 10; i += 2)
-            {
-                Console.WriteLine($"Thread 2 (çift) → {i}");
-                Thread.Sleep(400);
-            }
-        });
-
-        thread1.Start();
-        Thread.Sleep(400);
-        thread2.Start();
-
-        thread1.Join();
-        thread2.Join();
-
-        Console.WriteLine("Tüm thread'ler tamamlandı.");
-        Console.ReadLine();
-    }
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Senaryo B
-
-"İki thread oluşturun. Her ikisi de aynı anda başlasın (Sleep olmadan). Çıktı sırası her çalıştırmada değişiyor mu? Neden?"
-
-csharpusing System;
-using System.Threading;
-
-class Program
-{
-    static void Main(string[] args)
-    {
-        Thread thread1 = new Thread(() =>
-        {
-            for (int i = 1; i <= 5; i++)
-            {
-                Console.WriteLine($"Thread 1 çalışıyor → Adım {i}");
-                Thread.Sleep(300);
-            }
-        });
-
-        Thread thread2 = new Thread(() =>
-        {
-            for (int i = 1; i <= 5; i++)
-            {
-                Console.WriteLine($"Thread 2 çalışıyor → Adım {i}");
-                Thread.Sleep(300);
-            }
-        });
-
-        // İkisi aynı anda başlıyor — sıra garanti değil
-        thread1.Start();
-        thread2.Start();
-
-        thread1.Join();
-        thread2.Join();
-
-        Console.WriteLine("Tüm thread'ler tamamlandı.");
-        Console.ReadLine();
-    }
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-"Üç thread oluşturun. Her biri kendi adını ve adım numarasını yazdırsın. Thread'leri 200ms arayla başlatın. Hepsi bitince 'Görev tamamlandı' yazsın."
-
-csharpusing System;
-using System.Threading;
-
-class Program
-{
-    static void Main(string[] args)
-    {
-        Thread thread1 = new Thread(() =>
-        {
-            for (int i = 1; i <= 4; i++)
-            {
-                Console.WriteLine($"Thread 1 çalışıyor → Adım {i}");
-                Thread.Sleep(300);
-            }
-        });
-
-        Thread thread2 = new Thread(() =>
-        {
-            for (int i = 1; i <= 4; i++)
-            {
-                Console.WriteLine($"Thread 2 çalışıyor → Adım {i}");
-                Thread.Sleep(300);
-            }
-        });
-
-        Thread thread3 = new Thread(() =>
-        {
-            for (int i = 1; i <= 4; i++)
-            {
-                Console.WriteLine($"Thread 3 çalışıyor → Adım {i}");
-                Thread.Sleep(300);
-            }
-        });
-
-        thread1.Start();
-        Thread.Sleep(200);
-        thread2.Start();
-        Thread.Sleep(200);
-        thread3.Start();
-
-        thread1.Join();
-        thread2.Join();
-        thread3.Join();
-
-        Console.WriteLine("Görev tamamlandı.");
-        Console.ReadLine();
-    }
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-"İki thread oluşturun. Thread 1 hızlı (100ms), Thread 2 yavaş (500ms) çalışsın. Aynı anda başlatın. Hangisi önce biter? Join ile doğrulayın."
-
-csharpusing System;
-using System.Threading;
-
-class Program
-{
-    static void Main(string[] args)
-    {
-        Thread thread1 = new Thread(() =>
-        {
-            for (int i = 1; i <= 5; i++)
-            {
-                Console.WriteLine($"Thread 1 (hızlı) → Adım {i}");
-                Thread.Sleep(100);
-            }
-            Console.WriteLine("Thread 1 bitti.");
-        });
-
-        Thread thread2 = new Thread(() =>
-        {
-            for (int i = 1; i <= 5; i++)
-            {
-                Console.WriteLine($"Thread 2 (yavaş) → Adım {i}");
-                Thread.Sleep(500);
-            }
-            Console.WriteLine("Thread 2 bitti.");
-        });
-
-        thread1.Start();
-        thread2.Start();
-
-        thread1.Join();
-        thread2.Join();
-
-        Console.WriteLine("İkisi de tamamlandı.");
-        Console.ReadLine();
-    }
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Zor Senaryo: "Paralel Dizi Toplamı ve Senkronizasyon"
-Soru: 1'den 2000'e kadar olan sayıların toplamını hesaplayan bir program yazmanız isteniyor. Ancak işlemciyi yormamak (?) için bu işi iki parçaya bölmelisiniz:
-
-Thread 1: 1 ile 1000 arasındaki sayıları toplayıp ortak bir toplam değişkenine ekleyecek.
-
-Thread 2: 1001 ile 2000 arasındaki sayıları toplayıp aynı ortak toplam değişkenine ekleyecek.
-
-Kısıtlar: * Her iki thread de aynı toplam değişkenini kullanmalı (Race Condition riski).
-
-Ana program (Main), thread'ler işini bitirmeden sonucu ekrana yazdırmamalı.
-
-Her toplama işleminden sonra Thread.Sleep(1) yaparak işlemci geçişlerini (context switch) zorlamalısın.
-
-Çözüm Kodu (C#)
-C#
-using System;
-using System.Threading;
-
-class Program
-{
-    static int genelToplam = 0; // Ortak kaynak
-    static object kilit = new object(); // Senkronizasyon anahtarı
-
-    static void Main()
-    {
-        // Thread'lere parametre gönderiyoruz (Başlangıç ve Bitiş değerleri)
-        Thread t1 = new Thread(() => Topla(1, 1000));
-        Thread t2 = new Thread(() => Topla(1001, 2000));
-
-        t1.Start();
-        t2.Start();
-
-        // KRİTİK NOKTA: Join kullanılmazsa ana thread toplama bitmeden 0 yazar.
-        t1.Join(); 
-        t2.Join();
-
-        Console.WriteLine($"Hesaplanan Toplam: {genelToplam}");
-        // Matematiksel sağlama: (n*(n+1))/2 => (2000*2001)/2 = 2.001.000
-        Console.ReadLine();
-    }
-
-    static void Topla(int baslangic, int bitis)
-    {
-        int araToplam = 0;
-        for (int i = baslangic; i <= bitis; i++)
-        {
-            araToplam += i;
+            return dt;
         }
 
-        // KRİTİK BÖLGE: Ortak değişkene yazarken kilitleme şart!
-        lock (kilit)
+        // INSERT, UPDATE, DELETE → etkilenen satır sayısı
+        public int SorguCalistir(string sql, params object[] p)
         {
-            // Eğer lock olmazsa, iki thread aynı anda eklemeye çalışırken
-            // biri diğerinin sonucunu silebilir.
-            genelToplam += araToplam;
+            using (SqlConnection conn = new SqlConnection(cs))
+            using (SqlCommand cmd = new SqlCommand(sql, conn))
+            {
+                for (int i = 0; i < p.Length; i++)
+                    cmd.Parameters.AddWithValue("@p" + i, p[i]);
+
+                conn.Open();
+                return cmd.ExecuteNonQuery();
+            }
+        }
+
+        // --- MÜŞTERİ İŞLEMLERİ ---
+        public DataTable MusteriIslem(IslemTipi tip, params object[] v)
+        {
+            switch (tip)
+            {
+                case IslemTipi.Listele:
+                    return TabloDoldur("SELECT * FROM Musteriler");
+
+                case IslemTipi.Ekle:
+                    SorguCalistir("INSERT INTO Musteriler (Ad,Soyad,Telefon,Eposta) VALUES (@p0,@p1,@p2,@p3)",
+                        v[0], v[1], v[2], v[3]);
+                    return MusteriIslem(IslemTipi.Listele);
+
+                case IslemTipi.Guncelle:
+                    SorguCalistir("UPDATE Musteriler SET Ad=@p0,Soyad=@p1,Telefon=@p2,Eposta=@p3 WHERE MusteriID=@p4",
+                        v[0], v[1], v[2], v[3], v[4]);
+                    return MusteriIslem(IslemTipi.Listele);
+
+                case IslemTipi.Sil:
+                    SorguCalistir("DELETE FROM Musteriler WHERE MusteriID=@p0", v[0]);
+                    return MusteriIslem(IslemTipi.Listele);
+
+                case IslemTipi.Ara:
+                    string a = "%" + v[0] + "%";
+                    return TabloDoldur("SELECT * FROM Musteriler WHERE Ad LIKE @p0 OR Soyad LIKE @p1", a, a);
+
+                default: return new DataTable();
+            }
+        }
+
+        // --- ÜRÜN İŞLEMLERİ ---
+        public DataTable UrunIslem(IslemTipi tip, params object[] v)
+        {
+            switch (tip)
+            {
+                case IslemTipi.Listele:
+                    return TabloDoldur("SELECT * FROM Urunler");
+
+                case IslemTipi.Ekle:
+                    SorguCalistir("INSERT INTO Urunler (UrunAdi,Kategori,Fiyat,StokMiktari) VALUES (@p0,@p1,@p2,@p3)",
+                        v[0], v[1], v[2], v[3]);
+                    return UrunIslem(IslemTipi.Listele);
+
+                case IslemTipi.Guncelle:
+                    SorguCalistir("UPDATE Urunler SET UrunAdi=@p0,Kategori=@p1,Fiyat=@p2,StokMiktari=@p3 WHERE UrunID=@p4",
+                        v[0], v[1], v[2], v[3], v[4]);
+                    return UrunIslem(IslemTipi.Listele);
+
+                case IslemTipi.Sil:
+                    SorguCalistir("DELETE FROM Urunler WHERE UrunID=@p0", v[0]);
+                    return UrunIslem(IslemTipi.Listele);
+
+                case IslemTipi.Ara:
+                    string a = "%" + v[0] + "%";
+                    return TabloDoldur("SELECT * FROM Urunler WHERE UrunAdi LIKE @p0 OR Kategori LIKE @p1", a, a);
+
+                default: return new DataTable();
+            }
+        }
+
+        // --- SİPARİŞ İŞLEMLERİ (INNER JOIN ile) ---
+        public DataTable SiparisIslem(IslemTipi tip, params object[] v)
+        {
+            string joinSql = @"SELECT s.SiparisID, m.Ad+' '+m.Soyad AS Musteri, u.UrunAdi, 
+                               s.Adet, u.Fiyat, (s.Adet*u.Fiyat) AS Tutar, s.SiparisTarihi
+                               FROM Siparisler s
+                               INNER JOIN Musteriler m ON s.MusteriID=m.MusteriID
+                               INNER JOIN Urunler u ON s.UrunID=u.UrunID";
+
+            switch (tip)
+            {
+                case IslemTipi.Listele:
+                    return TabloDoldur(joinSql);
+
+                case IslemTipi.Ekle:
+                    SorguCalistir("INSERT INTO Siparisler (MusteriID,UrunID,Adet) VALUES (@p0,@p1,@p2)",
+                        v[0], v[1], v[2]);
+                    return SiparisIslem(IslemTipi.Listele);
+
+                case IslemTipi.Sil:
+                    SorguCalistir("DELETE FROM Siparisler WHERE SiparisID=@p0", v[0]);
+                    return SiparisIslem(IslemTipi.Listele);
+
+                case IslemTipi.Ara:
+                    string a = "%" + v[0] + "%";
+                    return TabloDoldur(joinSql + " WHERE m.Ad LIKE @p0 OR u.UrunAdi LIKE @p1", a, a);
+
+                default: return new DataTable();
+            }
         }
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Senaryo: "Sinema Bileti Satış Sistemi"
-Bir sinema salonunda sadece 10 adet boş koltuk var. İki farklı bilet gişesi (Thread 1 ve Thread 2) aynı anda bilet satmaya çalışıyor. Eğer senkronizasyon (lock) kullanmazsan, sistem aslında olmayan koltukları da satmaya çalışabilir (Race Condition).
-
-Kod Çözümü (C#)
-C#
-using System;
-using System.Threading;
-
-class SinemaSistemi
-{
-    private int toplamBilet = 10; // Paylaşılan kaynak
-    private static object kilit = new object(); // Kilitleme nesnesi
-
-    public void BiletSat(string giseAdi)
-    {
-        while (true)
-        {
-            // Kritik Bölge Başlangıcı
-            lock (kilit) 
-            {
-                if (toplamBilet > 0)
-                {
-                    // İşlemi yavaşlatıp hatayı tetiklemek için kısa bir bekleme
-                    Thread.Sleep(100); 
-                    
-                    toplamBilet--;
-                    Console.WriteLine($"{giseAdi} bilet sattı. Kalan bilet: {toplamBilet}");
-                }
-                else
-                {
-                    Console.WriteLine($"{giseAdi}: Biletler tükendi!");
-                    break; 
-                }
-            }
-            // Kritik Bölge Bitişi
-            
-            // Gişeler arası geçişi simüle etmek için dışarıda kısa bekleme
-            Thread.Sleep(10); 
-        }
-    }
-}
-
-class Program
-{
-    static void Main()
-    {
-        SinemaSistemi sinema = new SinemaSistemi();
-
-        Thread gise1 = new Thread(() => sinema.BiletSat("Gişe-1"));
-        Thread gise2 = new Thread(() => sinema.BiletSat("Gişe-2"));
-
-        gise1.Start();
-        gise2.Start();
-
-        gise1.Join();
-        gise2.Join();
-
-        Console.WriteLine("Satış işlemi tamamlandı.");
-        Console.ReadLine();
-    }
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
