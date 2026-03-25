@@ -15,7 +15,7 @@ namespace MarketYonetim
 
     public class Veritabani
     {
-        private string cs = @"Server=.\SQLEXPRESS;Database=MarketDB;Trusted_Connection=True;TrustServerCertificate=True;";
+    private string cs = @"Server=(localdb)\MSSQLLocalDB;Database=MarketDB;Trusted_Connection=True;TrustServerCertificate=True;";
 
         // SELECT → DataTable döndürür
         public DataTable TabloDoldur(string sql, params object[] p)
