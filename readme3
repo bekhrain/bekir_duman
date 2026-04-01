@@ -1,0 +1,269 @@
+using System;
+using System.Collections.Generic;
+
+namespace FilmKoleksiyon
+{
+    class Film
+    {
+        public int FilmId { get; set; }
+        public string Baslik { get; set; }
+        public string Tur { get; set; }
+        public int Yil { get; set; }
+        public double Puan { get; set; }
+        public string Yonetmen { get; set; }
+        public bool Izlendi { get; set; }
+
+        public Film(int id, string baslik, string tur, int yil, double puan, string yonetmen, bool izlendi)
+        {
+            FilmId = id;
+            Baslik = baslik;
+            Tur = tur;
+            Yil = yil;
+            Puan = puan;
+            Yonetmen = yonetmen;
+            Izlendi = izlendi;
+        }
+    }
+
+    class Program
+    {
+        static List<Film> filmler = new List<Film>();
+
+        static void Main(string[] args)
+        {
+            filmler.Add(new Film(1, "The Shawshank Redemption", "Drama",   1994, 9.3, "Frank Darabont",    true));
+            filmler.Add(new Film(2, "The Godfather",            "Drama",   1972, 9.2, "Francis Coppola",   true));
+            filmler.Add(new Film(3, "The Dark Knight",          "Aksiyon", 2008, 9.0, "Christopher Nolan", true));
+            filmler.Add(new Film(4, "Inception",                "Aksiyon", 2010, 8.8, "Christopher Nolan", false));
+            filmler.Add(new Film(5, "Interstellar",             "Bilim K", 2014, 8.6, "Christopher Nolan", false));
+            filmler.Add(new Film(6, "Parasite",                 "Drama",   2019, 8.5, "Bong Joon-ho",      false));
+            filmler.Add(new Film(7, "The Matrix",               "Aksiyon", 1999, 8.7, "Wachowski",         true));
+            filmler.Add(new Film(8, "Forrest Gump",             "Drama",   1994, 8.8, "Robert Zemeckis",   true));
+            filmler.Add(new Film(9, "La La Land",               "Romantik",2016, 8.0, "Damien Chazelle",   false));
+
+            bool devam = true;
+
+            while (devam)
+            {
+                Console.WriteLine("\n=== FILM KOLEKSIYON SISTEMI ===");
+                Console.WriteLine("1. Tum filmleri listele");
+                Console.WriteLine("2. Ture gore listele");
+                Console.WriteLine("3. En yuksek puanli film");
+                Console.WriteLine("4. Izlenmemis filmleri goster");
+                Console.WriteLine("5. Film ara");
+                Console.WriteLine("6. Filmi izlendi olarak isaretle");
+                Console.WriteLine("7. Tur puan ortalamasini hesapla");
+                Console.WriteLine("0. Cikis");
+                Console.Write("Secim yapiniz: ");
+
+                string secim = Console.ReadLine();
+
+                if (secim == "1")
+                {
+                    TumunuListele();
+                }
+                else if (secim == "2")
+                {
+                    Console.Write("Tur girin (Drama/Aksiyon/Bilim K/Romantik): ");
+                    string tur = Console.ReadLine();
+                    TureGoreListele(tur);
+                }
+                else if (secim == "3")
+                {
+                    EnYuksekPuanliFilm();
+                }
+                else if (secim == "4")
+                {
+                    IzlenmemisleriGoster();
+                }
+                else if (secim == "5")
+                {
+                    Console.Write("Film adi ya da yonetmen ara: ");
+                    string kelime = Console.ReadLine();
+                    FilmAra(kelime);
+                }
+                else if (secim == "6")
+                {
+                    Console.Write("Film ID girin: ");
+                    string idGirdi = Console.ReadLine();
+                    int filmId;
+                    if (int.TryParse(idGirdi, out filmId))
+                    {
+                        IzlendiIsaretle(filmId);
+                    }
+                    else
+                    {
+                        Console.WriteLine("Gecersiz ID.");
+                    }
+                }
+                else if (secim == "7")
+                {
+                    Console.Write("Tur girin: ");
+                    string tur = Console.ReadLine();
+                    TurOrtalamasiHesapla(tur);
+                }
+                else if (secim == "0")
+                {
+                    devam = false;
+                    Console.WriteLine("Program sonlandi.");
+                }
+                else
+                {
+                    Console.WriteLine("Gecersiz secim!");
+                }
+            }
+        }
+
+        static void TumunuListele()
+        {
+            Console.WriteLine("\n--- TUM FILMLER ---");
+
+            for (int i = 0; i < filmler.Count; i++)
+            {
+                string izlendiDurumu;
+                if (filmler[i].Izlendi == true)
+                {
+                    izlendiDurumu = "Izlendi";
+                }
+                else
+                {
+                    izlendiDurumu = "Izlenmedi";
+                }
+
+                Console.WriteLine("ID: " + filmler[i].FilmId + " | Baslik: " + filmler[i].Baslik + " | Tur: " + filmler[i].Tur + " | Yil: " + filmler[i].Yil + " | Puan: " + filmler[i].Puan + " | " + izlendiDurumu);
+            }
+        }
+
+        static void TureGoreListele(string tur)
+        {
+            Console.WriteLine("\n--- " + tur.ToUpper() + " TURU FILMLER ---");
+
+            bool bulundu = false;
+
+            for (int i = 0; i < filmler.Count; i++)
+            {
+                if (filmler[i].Tur == tur)
+                {
+                    Console.WriteLine("Baslik: " + filmler[i].Baslik + " | Yil: " + filmler[i].Yil + " | Puan: " + filmler[i].Puan + " | Yonetmen: " + filmler[i].Yonetmen);
+                    bulundu = true;
+                }
+            }
+
+            if (bulundu == false)
+            {
+                Console.WriteLine("Bu turde film bulunamadi.");
+            }
+        }
+
+        static void EnYuksekPuanliFilm()
+        {
+            if (filmler.Count == 0)
+            {
+                Console.WriteLine("Listede film bulunmuyor.");
+                return;
+            }
+
+            int enIyiIndex = 0;
+
+            for (int i = 1; i < filmler.Count; i++)
+            {
+                if (filmler[i].Puan > filmler[enIyiIndex].Puan)
+                {
+                    enIyiIndex = i;
+                }
+            }
+
+            Console.WriteLine("\nEn yuksek puanli film:");
+            Console.WriteLine("Baslik: " + filmler[enIyiIndex].Baslik + " | Puan: " + filmler[enIyiIndex].Puan + " | Yil: " + filmler[enIyiIndex].Yil);
+        }
+
+        static void IzlenmemisleriGoster()
+        {
+            Console.WriteLine("\n--- IZLENMEMIS FILMLER ---");
+
+            bool bulundu = false;
+
+            for (int i = 0; i < filmler.Count; i++)
+            {
+                if (filmler[i].Izlendi == false)
+                {
+                    Console.WriteLine("Baslik: " + filmler[i].Baslik + " | Tur: " + filmler[i].Tur + " | Puan: " + filmler[i].Puan);
+                    bulundu = true;
+                }
+            }
+
+            if (bulundu == false)
+            {
+                Console.WriteLine("Tum filmler izlenmis.");
+            }
+        }
+
+        static void FilmAra(string kelime)
+        {
+            Console.WriteLine("\n--- ARAMA SONUCLARI ---");
+
+            bool bulundu = false;
+
+            for (int i = 0; i < filmler.Count; i++)
+            {
+                if (filmler[i].Baslik.ToLower().Contains(kelime.ToLower()) || filmler[i].Yonetmen.ToLower().Contains(kelime.ToLower()))
+                {
+                    Console.WriteLine("Baslik: " + filmler[i].Baslik + " | Yonetmen: " + filmler[i].Yonetmen + " | Puan: " + filmler[i].Puan);
+                    bulundu = true;
+                }
+            }
+
+            if (bulundu == false)
+            {
+                Console.WriteLine("Aranan filme ait sonuc bulunamadi.");
+            }
+        }
+
+        static void IzlendiIsaretle(int id)
+        {
+            for (int i = 0; i < filmler.Count; i++)
+            {
+                if (filmler[i].FilmId == id)
+                {
+                    if (filmler[i].Izlendi == true)
+                    {
+                        Console.WriteLine(filmler[i].Baslik + " zaten izlendi olarak isaretli.");
+                    }
+                    else
+                    {
+                        filmler[i].Izlendi = true;
+                        Console.WriteLine(filmler[i].Baslik + " izlendi olarak isaretlendi.");
+                    }
+                    return;
+                }
+            }
+
+            Console.WriteLine("Bu ID ile film bulunamadi.");
+        }
+
+        static void TurOrtalamasiHesapla(string tur)
+        {
+            double toplam = 0;
+            int adet = 0;
+
+            for (int i = 0; i < filmler.Count; i++)
+            {
+                if (filmler[i].Tur == tur)
+                {
+                    toplam = toplam + filmler[i].Puan;
+                    adet = adet + 1;
+                }
+            }
+
+            if (adet == 0)
+            {
+                Console.WriteLine("Bu turde film bulunamadi.");
+            }
+            else
+            {
+                double ortalama = toplam / adet;
+                Console.WriteLine(tur + " turu puan ortalamasi: " + Math.Round(ortalama, 2));
+            }
+        }
+    }
+}
