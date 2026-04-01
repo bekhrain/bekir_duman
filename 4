@@ -1,0 +1,243 @@
+using System;
+using System.Collections.Generic;
+using System.Data.SqlClient;
+
+namespace OgrenciNotSistemi
+{
+    class Ogrenci
+    {
+        public int OgrenciNo { get; set; }
+        public string Ad { get; set; }
+        public string Soyad { get; set; }
+        public string Ders { get; set; }
+        public double Not { get; set; }
+
+        public Ogrenci(int no, string ad, string soyad, string ders, double not)
+        {
+            OgrenciNo = no;
+            Ad = ad;
+            Soyad = soyad;
+            Ders = ders;
+            Not = not;
+        }
+    }
+
+    class Program
+    {
+        // Bağlantı bilgilerini buraya gir
+        static string baglantiCumlesi = "Server=SUNUCU_ADI; Database=OgrenciDB; Integrated Security=True;";
+
+        static List<Ogrenci> ogrenciler = new List<Ogrenci>();
+
+        static void Main(string[] args)
+        {
+            // Program başlarken SQL'den verileri çek
+            VerileriYukle();
+
+            bool devam = true;
+
+            while (devam)
+            {
+                Console.WriteLine("\n=== OGRENCI NOT SISTEMI ===");
+                Console.WriteLine("1. Tum ogrencileri listele");
+                Console.WriteLine("2. Derse gore listele");
+                Console.WriteLine("3. Ders ortalamasini hesapla");
+                Console.WriteLine("4. En yuksek notlu ogrenci");
+                Console.WriteLine("5. Isme gore ara");
+                Console.WriteLine("0. Cikis");
+                Console.Write("Secim yapiniz: ");
+
+                string secim = Console.ReadLine();
+
+                if (secim == "1")
+                {
+                    TumunuListele();
+                }
+                else if (secim == "2")
+                {
+                    Console.Write("Ders adi girin: ");
+                    string dersAdi = Console.ReadLine();
+                    DerseGoreListele(dersAdi);
+                }
+                else if (secim == "3")
+                {
+                    Console.Write("Ders adi girin: ");
+                    string dersAdi = Console.ReadLine();
+                    OrtalamaHesapla(dersAdi);
+                }
+                else if (secim == "4")
+                {
+                    EnYuksekNotluOgrenci();
+                }
+                else if (secim == "5")
+                {
+                    Console.Write("Aranacak isim: ");
+                    string isim = Console.ReadLine();
+                    IsimeGoreAra(isim);
+                }
+                else if (secim == "0")
+                {
+                    devam = false;
+                    Console.WriteLine("Program sonlandi.");
+                }
+                else
+                {
+                    Console.WriteLine("Gecersiz secim!");
+                }
+            }
+        }
+
+        // SQL'den verileri çekip listeye ekleme
+        static void VerileriYukle()
+        {
+            ogrenciler.Clear();
+
+            // 1. Adım: Bağlantıyı aç
+            SqlConnection baglanti = new SqlConnection(baglantiCumlesi);
+            baglanti.Open();
+
+            // 2. Adım: SQL sorgusunu yaz
+            string sorgu = "SELECT OgrenciNo, Ad, Soyad, Ders, Not FROM Ogrenciler";
+            SqlCommand komut = new SqlCommand(sorgu, baglanti);
+
+            // 3. Adım: Verileri oku
+            SqlDataReader okuyucu = komut.ExecuteReader();
+
+            while (okuyucu.Read())
+            {
+                int no      = int.Parse(okuyucu["OgrenciNo"].ToString());
+                string ad   = okuyucu["Ad"].ToString();
+                string soyad = okuyucu["Soyad"].ToString();
+                string ders  = okuyucu["Ders"].ToString();
+                double not   = double.Parse(okuyucu["Not"].ToString());
+
+                // 4. Adım: Nesneye atıp listeye ekle
+                Ogrenci o = new Ogrenci(no, ad, soyad, ders, not);
+                ogrenciler.Add(o);
+            }
+
+            okuyucu.Close();
+            baglanti.Close();
+
+            Console.WriteLine(ogrenciler.Count + " ogrenci SQL'den yuklendi.");
+        }
+
+        static void TumunuListele()
+        {
+            Console.WriteLine("\n--- TUM OGRENCILER ---");
+
+            for (int i = 0; i < ogrenciler.Count; i++)
+            {
+                Console.WriteLine("No: " + ogrenciler[i].OgrenciNo + " | Ad Soyad: " + ogrenciler[i].Ad + " " + ogrenciler[i].Soyad + " | Ders: " + ogrenciler[i].Ders + " | Not: " + ogrenciler[i].Not);
+            }
+        }
+
+        static void DerseGoreListele(string ders)
+        {
+            Console.WriteLine("\n--- " + ders + " DERSI OGRENCILERI ---");
+
+            bool bulundu = false;
+
+            for (int i = 0; i < ogrenciler.Count; i++)
+            {
+                if (ogrenciler[i].Ders == ders)
+                {
+                    Console.WriteLine("Ad Soyad: " + ogrenciler[i].Ad + " " + ogrenciler[i].Soyad + " | Not: " + ogrenciler[i].Not);
+                    bulundu = true;
+                }
+            }
+
+            if (bulundu == false)
+            {
+                Console.WriteLine("Bu derse kayitli ogrenci bulunamadi.");
+            }
+        }
+
+        static void OrtalamaHesapla(string ders)
+        {
+            double toplam = 0;
+            int adet = 0;
+
+            for (int i = 0; i < ogrenciler.Count; i++)
+            {
+                if (ogrenciler[i].Ders == ders)
+                {
+                    toplam = toplam + ogrenciler[i].Not;
+                    adet = adet + 1;
+                }
+            }
+
+            if (adet == 0)
+            {
+                Console.WriteLine("Bu derse ait kayit bulunamadi.");
+            }
+            else
+            {
+                double ortalama = toplam / adet;
+                Console.WriteLine(ders + " dersi not ortalamasi: " + Math.Round(ortalama, 2));
+            }
+        }
+
+        static void EnYuksekNotluOgrenci()
+        {
+            if (ogrenciler.Count == 0)
+            {
+                Console.WriteLine("Listede ogrenci bulunmuyor.");
+                return;
+            }
+
+            int enIyiIndex = 0;
+
+            for (int i = 1; i < ogrenciler.Count; i++)
+            {
+                if (ogrenciler[i].Not > ogrenciler[enIyiIndex].Not)
+                {
+                    enIyiIndex = i;
+                }
+            }
+
+            Console.WriteLine("\nEn yuksek not alan ogrenci:");
+            Console.WriteLine("Ad Soyad: " + ogrenciler[enIyiIndex].Ad + " " + ogrenciler[enIyiIndex].Soyad + " | Ders: " + ogrenciler[enIyiIndex].Ders + " | Not: " + ogrenciler[enIyiIndex].Not);
+        }
+
+        static void IsimeGoreAra(string aranan)
+        {
+            Console.WriteLine("\n--- ARAMA SONUCLARI ---");
+
+            bool bulundu = false;
+
+            for (int i = 0; i < ogrenciler.Count; i++)
+            {
+                if (ogrenciler[i].Ad.ToLower().Contains(aranan.ToLower()))
+                {
+                    Console.WriteLine("Ad Soyad: " + ogrenciler[i].Ad + " " + ogrenciler[i].Soyad + " | Ders: " + ogrenciler[i].Ders + " | Not: " + ogrenciler[i].Not);
+                    bulundu = true;
+                }
+            }
+
+            if (bulundu == false)
+            {
+                Console.WriteLine("Aranan isimde ogrenci bulunamadi.");
+            }
+        }
+    }
+}
+
+/*
+ =====================================================
+ SQL TABLONUN OLMASI GEREKEN YAPISI:
+ =====================================================
+
+ CREATE TABLE Ogrenciler (
+     OgrenciNo  INT           PRIMARY KEY,
+     Ad         NVARCHAR(50)  NOT NULL,
+     Soyad      NVARCHAR(50)  NOT NULL,
+     Ders       NVARCHAR(50)  NOT NULL,
+     Not        FLOAT         NOT NULL
+ );
+
+ INSERT INTO Ogrenciler VALUES (1001, 'Ahmet',  'Yilmaz', 'Matematik', 88.5);
+ INSERT INTO Ogrenciler VALUES (1002, 'Ayse',   'Kaya',   'Matematik', 92.0);
+ INSERT INTO Ogrenciler VALUES (1003, 'Mehmet', 'Demir',  'Fizik',     74.3);
+ INSERT INTO Ogrenciler VALUES (1004, 'Fatma',  'Celik',  'Fizik',     85.0);
+*/
