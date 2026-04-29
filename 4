@@ -1,0 +1,334 @@
+// ============================================================
+// PROJE 4: OYUN KARAKTERİ SİSTEMİ
+// Kullanılan Pattern'lar: Singleton, Factory, Strategy, Observer
+// ============================================================
+
+using System;
+using System.Collections.Generic;
+
+// ─────────────────────────────────────────────
+// SINGLETON — Oyun Motoru / Skor Yöneticisi
+// ─────────────────────────────────────────────
+public sealed class OyunMotoru
+{
+    private static OyunMotoru _instance = null;
+    private int  _toplamSkor = 0;
+    private int  _tur        = 0;
+
+    private OyunMotoru()
+    {
+        Console.WriteLine("[OyunMotoru] Oyun başlatıldı! (Tek örnek)");
+    }
+
+    public static OyunMotoru GetInstance()
+    {
+        if (_instance == null)
+            _instance = new OyunMotoru();
+        return _instance;
+    }
+
+    public void SkorEkle(string karakter, int puan)
+    {
+        _toplamSkor += puan;
+        Console.WriteLine($"  [Motor] ⭐ {karakter} +{puan} puan! (Toplam: {_toplamSkor})");
+    }
+
+    public void YeniTur()
+    {
+        _tur++;
+        Console.WriteLine($"\n{'─',40} TUR {_tur} {'─',5}");
+    }
+
+    public void OyunSonu()
+    {
+        Console.WriteLine($"\n  ════════════════════════════════");
+        Console.WriteLine($"  OYUN BİTTİ! Toplam Skor: {_toplamSkor}");
+        Console.WriteLine($"  Toplam Tur: {_tur}");
+        Console.WriteLine($"  ════════════════════════════════");
+    }
+}
+
+// ─────────────────────────────────────────────
+// OBSERVER — Karakter Olay Sistemi
+// ─────────────────────────────────────────────
+public interface IKarakterGozlemci
+{
+    void HasarAlindi(string karakter, int hasar, int kalanCan);
+    void DusmanOlduruldu(string karakter, string dusman);
+}
+
+public class UIGuncelleme : IKarakterGozlemci
+{
+    public void HasarAlindi(string karakter, int hasar, int kalanCan)
+        => Console.WriteLine($"  [UI] 💔 {karakter} can barı: {kalanCan} HP (-{hasar})");
+
+    public void DusmanOlduruldu(string karakter, string dusman)
+        => Console.WriteLine($"  [UI] 💀 {karakter} → {dusman} yenildi!");
+}
+
+public class SesMotoru : IKarakterGozlemci
+{
+    public void HasarAlindi(string karakter, int hasar, int kalanCan)
+    {
+        if (kalanCan < 30)
+            Console.WriteLine($"  [Ses] 🔊 Kritik can sesi çalıyor! ({karakter})");
+        else
+            Console.WriteLine($"  [Ses] 🔊 Hasar sesi çalındı.");
+    }
+
+    public void DusmanOlduruldu(string karakter, string dusman)
+        => Console.WriteLine($"  [Ses] 🎵 Zafer müziği çaldı!");
+}
+
+public class LogKaydedici : IKarakterGozlemci
+{
+    public void HasarAlindi(string karakter, int hasar, int kalanCan)
+        => Console.WriteLine($"  [Log] {karakter} hasar aldı: -{hasar} HP, kalan: {kalanCan}");
+
+    public void DusmanOlduruldu(string karakter, string dusman)
+        => Console.WriteLine($"  [Log] {karakter} '{dusman}'ı öldürdü.");
+}
+
+// ─────────────────────────────────────────────
+// STRATEGY — Saldırı Algoritmaları
+// ─────────────────────────────────────────────
+public interface ISaldiriStratejisi
+{
+    int SaldiriYap(string saldirgan, string hedef);
+    string Ad { get; }
+}
+
+public class YakinDovus : ISaldiriStratejisi
+{
+    private static Random _rnd = new Random();
+    public string Ad => "Yakın Dövüş";
+    public int SaldiriYap(string saldirgan, string hedef)
+    {
+        int hasar = _rnd.Next(20, 50);
+        Console.WriteLine($"  ⚔️  {saldirgan} → {hedef}: Kılıç darbesi! ({hasar} hasar)");
+        return hasar;
+    }
+}
+
+public class BuyuSaldirisi : ISaldiriStratejisi
+{
+    private static Random _rnd = new Random();
+    public string Ad => "Büyü";
+    public int SaldiriYap(string saldirgan, string hedef)
+    {
+        int hasar = _rnd.Next(35, 80);
+        Console.WriteLine($"  🔮 {saldirgan} → {hedef}: Ateş büyüsü! ({hasar} hasar)");
+        return hasar;
+    }
+}
+
+public class OkAtisi : ISaldiriStratejisi
+{
+    private static Random _rnd = new Random();
+    public string Ad => "Ok Atışı";
+    public int SaldiriYap(string saldirgan, string hedef)
+    {
+        bool kritik = _rnd.Next(0, 4) == 0; // %25 kritik şans
+        int hasar   = _rnd.Next(15, 35) * (kritik ? 2 : 1);
+        string ek   = kritik ? " [KRİTİK!]" : "";
+        Console.WriteLine($"  🏹 {saldirgan} → {hedef}: Ok atışı! ({hasar} hasar){ek}");
+        return hasar;
+    }
+}
+
+public class SurusalSaldiri : ISaldiriStratejisi
+{
+    private static Random _rnd = new Random();
+    public string Ad => "Sürüsal Saldırı";
+    public int SaldiriYap(string saldirgan, string hedef)
+    {
+        int hasar = _rnd.Next(5, 15);
+        Console.WriteLine($"  🐺 {saldirgan} → {hedef}: Kürk pençe! ({hasar} hasar)");
+        return hasar;
+    }
+}
+
+// ─────────────────────────────────────────────
+// FACTORY — Karakter Üretimi
+// ─────────────────────────────────────────────
+public abstract class OyunKarakteri
+{
+    public string  Ad        { get; protected set; }
+    public int     Can       { get; protected set; }
+    public int     MaxCan    { get; protected set; }
+    public abstract string Sinif { get; }
+
+    private ISaldiriStratejisi _strateji;
+    private List<IKarakterGozlemci> _gozlemciler = new List<IKarakterGozlemci>();
+
+    protected OyunKarakteri(string ad, int can)
+    {
+        Ad     = ad;
+        Can    = can;
+        MaxCan = can;
+    }
+
+    public void GozlemciEkle(IKarakterGozlemci g) => _gozlemciler.Add(g);
+    public void GozlemciCikar(IKarakterGozlemci g) => _gozlemciler.Remove(g);
+
+    public void SaldiriSec(ISaldiriStratejisi strateji)
+    {
+        _strateji = strateji;
+        Console.WriteLine($"  [{Ad}] Saldırı stratejisi değiştirildi: {strateji.Ad}");
+    }
+
+    public void SaldiriyaUgra(int hasar)
+    {
+        Can = Math.Max(0, Can - hasar);
+        foreach (var g in _gozlemciler)
+            g.HasarAlindi(Ad, hasar, Can);
+    }
+
+    public void Saldir(OyunKarakteri hedef)
+    {
+        if (_strateji == null) { Console.WriteLine($"  [{Ad}] Saldırı stratejisi yok!"); return; }
+        int hasar = _strateji.SaldiriYap(Ad, hedef.Ad);
+        hedef.SaldiriyaUgra(hasar);
+
+        if (hedef.Can <= 0)
+        {
+            Console.WriteLine($"  💀 {hedef.Ad} yenildi!");
+            foreach (var g in _gozlemciler)
+                g.DusmanOlduruldu(Ad, hedef.Ad);
+            OyunMotoru.GetInstance().SkorEkle(Ad, 100);
+        }
+    }
+
+    public bool HayattaMi() => Can > 0;
+
+    public override string ToString()
+        => $"[{Sinif}] {Ad} | Can: {Can}/{MaxCan}";
+}
+
+public class Savasci : OyunKarakteri
+{
+    public override string Sinif => "Savaşçı";
+    public Savasci(string ad) : base(ad, 150) { }
+}
+
+public class Buyucu : OyunKarakteri
+{
+    public override string Sinif => "Büyücü";
+    public Buyucu(string ad) : base(ad, 90) { }
+}
+
+public class Okcu : OyunKarakteri
+{
+    public override string Sinif => "Okçu";
+    public Okcu(string ad) : base(ad, 110) { }
+}
+
+public class Canavar : OyunKarakteri
+{
+    public override string Sinif => "Canavar";
+    public Canavar(string ad) : base(ad, 200) { }
+}
+
+public static class KarakterFabrika
+{
+    public static OyunKarakteri Olustur(string sinif, string ad)
+    {
+        switch (sinif.ToLower())
+        {
+            case "savasci": return new Savasci(ad);
+            case "buyucu":  return new Buyucu(ad);
+            case "okcu":    return new Okcu(ad);
+            case "canavar": return new Canavar(ad);
+            default: throw new ArgumentException($"Bilinmeyen karakter sınıfı: {sinif}");
+        }
+    }
+}
+
+// ─────────────────────────────────────────────
+// MAIN
+// ─────────────────────────────────────────────
+class OyunProgram
+{
+    static void Main()
+    {
+        Console.WriteLine("╔══════════════════════════════════════╗");
+        Console.WriteLine("║       OYUN KARAKTERİ SİSTEMİ         ║");
+        Console.WriteLine("╚══════════════════════════════════════╝\n");
+
+        OyunMotoru motor = OyunMotoru.GetInstance();
+
+        // OBSERVER: Gözlemciler
+        var ui  = new UIGuncelleme();
+        var ses = new SesMotoru();
+        var log = new LogKaydedici();
+
+        // FACTORY: Karakterleri oluştur
+        Console.WriteLine("=== Karakterler Oluşturuluyor ===");
+        OyunKarakteri kahraman = KarakterFabrika.Olustur("savasci", "Kral Arthus");
+        OyunKarakteri buyucu   = KarakterFabrika.Olustur("buyucu",  "Merlin");
+        OyunKarakteri canavar  = KarakterFabrika.Olustur("canavar", "Ejderha");
+        OyunKarakteri okcu     = KarakterFabrika.Olustur("okcu",    "Legolas");
+
+        Console.WriteLine($"  {kahraman}");
+        Console.WriteLine($"  {buyucu}");
+        Console.WriteLine($"  {canavar}");
+        Console.WriteLine($"  {okcu}");
+
+        // Gözlemci ekle (oyuncu karakterlerine)
+        kahraman.GozlemciEkle(ui);
+        kahraman.GozlemciEkle(ses);
+        kahraman.GozlemciEkle(log);
+        buyucu.GozlemciEkle(ui);
+        okcu.GozlemciEkle(ui);
+
+        // ─── TUR 1 ───
+        motor.YeniTur();
+        Console.WriteLine("  Savaşçı yakın dövüşü seçiyor...");
+        kahraman.SaldiriSec(new YakinDovus());
+        kahraman.Saldir(canavar);
+
+        Console.WriteLine();
+        buyucu.SaldiriSec(new BuyuSaldirisi());
+        buyucu.Saldir(canavar);
+
+        // ─── TUR 2 ───
+        motor.YeniTur();
+        Console.WriteLine("  Ejderha saldırıyor!");
+        canavar.SaldiriSec(new SurusalSaldiri());
+        canavar.Saldir(kahraman);
+        canavar.Saldir(buyucu);
+
+        // ─── TUR 3 — STRATEJİ DEĞİŞİMİ ───
+        motor.YeniTur();
+        Console.WriteLine("  Kral Arthus taktik değiştiriyor...");
+        kahraman.SaldiriSec(new OkAtisi()); // çalışma zamanında strateji değişti!
+        kahraman.Saldir(canavar);
+
+        Console.WriteLine();
+        okcu.SaldiriSec(new OkAtisi());
+        okcu.Saldir(canavar);
+
+        // ─── TUR 4 ───
+        motor.YeniTur();
+        buyucu.Saldir(canavar);
+        kahraman.Saldir(canavar);
+
+        // Durum raporu
+        Console.WriteLine("\n=== Savaş Özeti ===");
+        foreach (var k in new[] { kahraman, buyucu, okcu, canavar })
+            Console.WriteLine($"  {k} — {(k.HayattaMi() ? "Hayatta ✅" : "Yenildi ❌")}");
+
+        // SINGLETON doğrulama
+        Console.WriteLine("\n=== Singleton Doğrulama ===");
+        OyunMotoru m1 = OyunMotoru.GetInstance();
+        OyunMotoru m2 = OyunMotoru.GetInstance();
+        Console.WriteLine($"  Aynı motor nesnesi mi? → {object.ReferenceEquals(m1, m2)}");
+
+        // FACTORY hata
+        Console.WriteLine("\n=== Factory Hata Senaryosu ===");
+        try { KarakterFabrika.Olustur("ninja", "Gizli Savaşçı"); }
+        catch (ArgumentException ex) { Console.WriteLine($"  Hata: {ex.Message}"); }
+
+        motor.OyunSonu();
+    }
+}
