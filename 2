@@ -1,0 +1,289 @@
+// ============================================================
+// PROJE 2: HAVA DURUMU / IoT İZLEME SİSTEMİ
+// Kullanılan Pattern'lar: Singleton, Factory, Strategy, Observer
+// ============================================================
+
+using System;
+using System.Collections.Generic;
+
+// ─────────────────────────────────────────────
+// SINGLETON — Merkezi Veri Tabanı Bağlantısı
+// ─────────────────────────────────────────────
+public sealed class VeritabaniBaglantisi
+{
+    private static VeritabaniBaglantisi _instance = null;
+    private int _kayitSayisi = 0;
+
+    private VeritabaniBaglantisi()
+    {
+        Console.WriteLine("[DB] Veritabanı bağlantısı kuruldu. (Tek seferlik!)");
+    }
+
+    public static VeritabaniBaglantisi GetInstance()
+    {
+        if (_instance == null)
+            _instance = new VeritabaniBaglantisi();
+        return _instance;
+    }
+
+    public void Kaydet(string tablo, string veri)
+    {
+        _kayitSayisi++;
+        Console.WriteLine($"  [DB #{_kayitSayisi}] {tablo} → {veri}");
+    }
+}
+
+// ─────────────────────────────────────────────
+// FACTORY — Sensör Üretimi
+// ─────────────────────────────────────────────
+public interface ISensor
+{
+    string Tip   { get; }
+    string Birim { get; }
+    double OlcumAl();
+}
+
+public class SicaklikSensoru : ISensor
+{
+    private static Random _rnd = new Random();
+    public string Tip   => "Sıcaklık";
+    public string Birim => "°C";
+    public double OlcumAl() => Math.Round(_rnd.NextDouble() * 50 - 10, 1); // -10 ile 40 arası
+}
+
+public class NemSensoru : ISensor
+{
+    private static Random _rnd = new Random();
+    public string Tip   => "Nem";
+    public string Birim => "%";
+    public double OlcumAl() => Math.Round(_rnd.NextDouble() * 100, 1);
+}
+
+public class BasincSensoru : ISensor
+{
+    private static Random _rnd = new Random();
+    public string Tip   => "Basınç";
+    public string Birim => "hPa";
+    public double OlcumAl() => Math.Round(980 + _rnd.NextDouble() * 60, 1); // 980-1040 hPa
+}
+
+public class HizSensoru : ISensor
+{
+    private static Random _rnd = new Random();
+    public string Tip   => "Rüzgar Hızı";
+    public string Birim => "km/h";
+    public double OlcumAl() => Math.Round(_rnd.NextDouble() * 120, 1);
+}
+
+public static class SensorFabrika
+{
+    public static ISensor Olustur(string tip)
+    {
+        switch (tip.ToLower())
+        {
+            case "sicaklik": return new SicaklikSensoru();
+            case "nem":      return new NemSensoru();
+            case "basinc":   return new BasincSensoru();
+            case "ruzgar":   return new HizSensoru();
+            default: throw new ArgumentException($"Bilinmeyen sensör tipi: {tip}");
+        }
+    }
+}
+
+// ─────────────────────────────────────────────
+// STRATEGY — Veri Analiz Algoritmaları
+// ─────────────────────────────────────────────
+public interface IAnalizStratejisi
+{
+    double Analiz(List<double> veriler);
+    string Ad { get; }
+}
+
+public class OrtalemaAnaliz : IAnalizStratejisi
+{
+    public string Ad => "Ortalama";
+    public double Analiz(List<double> veriler)
+    {
+        double toplam = 0;
+        foreach (var v in veriler) toplam += v;
+        return Math.Round(toplam / veriler.Count, 2);
+    }
+}
+
+public class MedyanAnaliz : IAnalizStratejisi
+{
+    public string Ad => "Medyan";
+    public double Analiz(List<double> veriler)
+    {
+        var kopya = new List<double>(veriler);
+        kopya.Sort();
+        int orta = kopya.Count / 2;
+        return kopya.Count % 2 == 0
+            ? Math.Round((kopya[orta - 1] + kopya[orta]) / 2.0, 2)
+            : kopya[orta];
+    }
+}
+
+public class MaksimumAnaliz : IAnalizStratejisi
+{
+    public string Ad => "Maksimum";
+    public double Analiz(List<double> veriler)
+    {
+        double maks = veriler[0];
+        foreach (var v in veriler) if (v > maks) maks = v;
+        return maks;
+    }
+}
+
+// ─────────────────────────────────────────────
+// OBSERVER — Uyarı Sistemi
+// ─────────────────────────────────────────────
+public interface IIstasyonGozlemci
+{
+    void OlcumAlindi(string istasyon, string sensorTip, double deger, string birim);
+}
+
+public class EkranGoruntuleyici : IIstasyonGozlemci
+{
+    public void OlcumAlindi(string istasyon, string tip, double deger, string birim)
+        => Console.WriteLine($"  [Ekran] 🖥  {istasyon} | {tip}: {deger}{birim}");
+}
+
+public class KritikUyariSistemi : IIstasyonGozlemci
+{
+    public void OlcumAlindi(string istasyon, string tip, double deger, string birim)
+    {
+        bool kritik = (tip == "Sıcaklık" && deger > 35) ||
+                      (tip == "Rüzgar Hızı" && deger > 80) ||
+                      (tip == "Nem" && deger > 90);
+        if (kritik)
+            Console.WriteLine($"  [UYARI] ⚠️  {istasyon} — {tip} kritik seviye: {deger}{birim}!");
+    }
+}
+
+public class VeritabaniKaydedici : IIstasyonGozlemci
+{
+    public void OlcumAlindi(string istasyon, string tip, double deger, string birim)
+    {
+        VeritabaniBaglantisi.GetInstance()
+            .Kaydet("olcumler", $"{istasyon} | {tip}={deger}{birim}");
+    }
+}
+
+// ─────────────────────────────────────────────
+// BAĞLAM — Hava İstasyonu
+// ─────────────────────────────────────────────
+public class HavaIstasyonu
+{
+    private string _isim;
+    private List<ISensor>          _sensorler   = new List<ISensor>();
+    private List<IIstasyonGozlemci> _gozlemciler = new List<IIstasyonGozlemci>();
+    private IAnalizStratejisi      _analizStr;
+    private Dictionary<string, List<double>> _gecmisVeriler = new Dictionary<string, List<double>>();
+
+    public HavaIstasyonu(string isim) { _isim = isim; }
+
+    public void SensorEkle(string tip)
+    {
+        _sensorler.Add(SensorFabrika.Olustur(tip));
+    }
+
+    public void GozlemciEkle(IIstasyonGozlemci g) => _gozlemciler.Add(g);
+
+    public void AnalizStratejisiSec(IAnalizStratejisi strateji)
+    {
+        _analizStr = strateji;
+    }
+
+    public void OlcumYap()
+    {
+        Console.WriteLine($"\n── {_isim} Ölçüm Turu ──");
+        foreach (var sensor in _sensorler)
+        {
+            double deger = sensor.OlcumAl();
+
+            if (!_gecmisVeriler.ContainsKey(sensor.Tip))
+                _gecmisVeriler[sensor.Tip] = new List<double>();
+            _gecmisVeriler[sensor.Tip].Add(deger);
+
+            foreach (var g in _gozlemciler)
+                g.OlcumAlindi(_isim, sensor.Tip, deger, sensor.Birim);
+        }
+    }
+
+    public void AnalizRaporuYazdir()
+    {
+        if (_analizStr == null) { Console.WriteLine("Analiz stratejisi seçilmedi!"); return; }
+        Console.WriteLine($"\n── {_isim} {_analizStr.Ad} Analiz Raporu ──");
+        foreach (var kvp in _gecmisVeriler)
+        {
+            double sonuc = _analizStr.Analiz(kvp.Value);
+            Console.WriteLine($"  {kvp.Key}: {sonuc}");
+        }
+    }
+}
+
+// ─────────────────────────────────────────────
+// MAIN
+// ─────────────────────────────────────────────
+class HavaDurumuProgram
+{
+    static void Main()
+    {
+        Console.WriteLine("╔══════════════════════════════════════╗");
+        Console.WriteLine("║     HAVA DURUMU / IoT SİSTEMİ        ║");
+        Console.WriteLine("╚══════════════════════════════════════╝\n");
+
+        // İstasyonları kur
+        HavaIstasyonu kayseri = new HavaIstasyonu("Kayseri");
+        HavaIstasyonu ankara  = new HavaIstasyonu("Ankara");
+
+        // FACTORY: Sensör ekle
+        kayseri.SensorEkle("sicaklik");
+        kayseri.SensorEkle("nem");
+        kayseri.SensorEkle("ruzgar");
+
+        ankara.SensorEkle("sicaklik");
+        ankara.SensorEkle("basinc");
+
+        // OBSERVER: Gözlemci ekle
+        var ekran  = new EkranGoruntuleyici();
+        var uyari  = new KritikUyariSistemi();
+        var dbKayd = new VeritabaniKaydedici();
+
+        kayseri.GozlemciEkle(ekran);
+        kayseri.GozlemciEkle(uyari);
+        kayseri.GozlemciEkle(dbKayd);
+
+        ankara.GozlemciEkle(ekran);
+        ankara.GozlemciEkle(uyari);
+
+        // STRATEGY: Analiz yöntemi seç
+        kayseri.AnalizStratejisiSec(new OrtalemaAnaliz());
+        ankara.AnalizStratejisiSec(new MaksimumAnaliz());
+
+        // 3 ölçüm turu
+        for (int i = 1; i <= 3; i++)
+        {
+            Console.WriteLine($"\n{'═',38} TUR {i}");
+            kayseri.OlcumYap();
+            ankara.OlcumYap();
+        }
+
+        // Analiz raporları
+        Console.WriteLine("\n════════════════ ANALİZ RAPORLARI ════════════════");
+        kayseri.AnalizRaporuYazdir();
+        ankara.AnalizRaporuYazdir();
+
+        // SINGLETON doğrulama
+        Console.WriteLine("\n=== Singleton Doğrulama ===");
+        var db1 = VeritabaniBaglantisi.GetInstance();
+        var db2 = VeritabaniBaglantisi.GetInstance();
+        Console.WriteLine($"  Aynı DB bağlantısı mı? → {object.ReferenceEquals(db1, db2)}");
+
+        // FACTORY hata
+        Console.WriteLine("\n=== Factory Hata Senaryosu ===");
+        try { SensorFabrika.Olustur("radyasyon"); }
+        catch (ArgumentException ex) { Console.WriteLine($"  Hata: {ex.Message}"); }
+    }
+}
