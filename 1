@@ -1,0 +1,267 @@
+// ============================================================
+// PROJE 1: E-TİCARET SİSTEMİ
+// Kullanılan Pattern'lar: Singleton, Factory, Strategy, Observer
+// ============================================================
+
+using System;
+using System.Collections.Generic;
+
+// ─────────────────────────────────────────────
+// SINGLETON — Uygulama Geneli Log Sistemi
+// ─────────────────────────────────────────────
+public sealed class AppLogger
+{
+    private static AppLogger _instance = null;
+    private int _no = 0;
+
+    private AppLogger()
+    {
+        Console.WriteLine("[AppLogger] Log sistemi başlatıldı.\n");
+    }
+
+    public static AppLogger GetInstance()
+    {
+        if (_instance == null)
+            _instance = new AppLogger();
+        return _instance;
+    }
+
+    public void Log(string seviye, string mesaj)
+    {
+        _no++;
+        Console.WriteLine($"  [{_no:D3}][{seviye.ToUpper()}] {mesaj}");
+    }
+}
+
+// ─────────────────────────────────────────────
+// OBSERVER — Stok Bildirim Sistemi
+// ─────────────────────────────────────────────
+public interface IStokGozlemci
+{
+    void StokUyarisi(string urun, int kalanAdet);
+}
+
+public class StokYoneticisi
+{
+    private List<IStokGozlemci> _gozlemciler = new List<IStokGozlemci>();
+    private Dictionary<string, int> _stok = new Dictionary<string, int>();
+
+    public void GozlemciEkle(IStokGozlemci g) => _gozlemciler.Add(g);
+    public void GozlemciCikar(IStokGozlemci g) => _gozlemciler.Remove(g);
+
+    public void StokGuncelle(string urun, int miktar)
+    {
+        _stok[urun] = miktar;
+        AppLogger.GetInstance().Log("INFO", $"Stok güncellendi: {urun} → {miktar} adet");
+
+        if (miktar <= 5)
+        {
+            foreach (var g in _gozlemciler)
+                g.StokUyarisi(urun, miktar);
+        }
+    }
+}
+
+public class EmailUyari : IStokGozlemci
+{
+    public void StokUyarisi(string urun, int kalanAdet)
+        => Console.WriteLine($"  [Email] ⚠️  '{urun}' için kritik stok uyarısı! Kalan: {kalanAdet}");
+}
+
+public class SmsUyari : IStokGozlemci
+{
+    public void StokUyarisi(string urun, int kalanAdet)
+        => Console.WriteLine($"  [SMS]   ⚠️  '{urun}' tükeniyor! Kalan: {kalanAdet}");
+}
+
+public class PanelUyari : IStokGozlemci
+{
+    public void StokUyarisi(string urun, int kalanAdet)
+        => Console.WriteLine($"  [Panel] 🔴 Yönetici Paneli: {urun} stoku {kalanAdet} adete düştü!");
+}
+
+// ─────────────────────────────────────────────
+// STRATEGY — Ödeme Yöntemleri
+// ─────────────────────────────────────────────
+public interface IOdemeStratejisi
+{
+    bool Ode(double tutar);
+    string Ad { get; }
+}
+
+public class KrediKartiOdeme : IOdemeStratejisi
+{
+    private string _kartNo;
+    public string Ad => "Kredi Kartı";
+    public KrediKartiOdeme(string kartNo) { _kartNo = kartNo; }
+    public bool Ode(double tutar)
+    {
+        Console.WriteLine($"  [Kredi Kartı] **** **** **** {_kartNo} → {tutar:F2} TL tahsil edildi.");
+        return true;
+    }
+}
+
+public class NakitOdeme : IOdemeStratejisi
+{
+    public string Ad => "Nakit";
+    public bool Ode(double tutar)
+    {
+        Console.WriteLine($"  [Nakit] {tutar:F2} TL alındı, para üstü verildi.");
+        return true;
+    }
+}
+
+public class KriptoOdeme : IOdemeStratejisi
+{
+    public string Ad => "Kripto";
+    public bool Ode(double tutar)
+    {
+        double btc = tutar / 3_500_000.0;
+        Console.WriteLine($"  [Kripto] {btc:F8} BTC transfer edildi. ({tutar:F2} TL karşılığı)");
+        return true;
+    }
+}
+
+// ─────────────────────────────────────────────
+// FACTORY — Kargo Firması Üretimi
+// ─────────────────────────────────────────────
+public interface IKargoServisi
+{
+    void KargoGonder(string alici, string adres);
+    string FirmaAdi { get; }
+}
+
+public class YurticiKargo : IKargoServisi
+{
+    public string FirmaAdi => "Yurtiçi Kargo";
+    public void KargoGonder(string alici, string adres)
+        => Console.WriteLine($"  [Yurtiçi] 📦 {alici} adına '{adres}' adresine gönderildi.");
+}
+
+public class ArasKargo : IKargoServisi
+{
+    public string FirmaAdi => "Aras Kargo";
+    public void KargoGonder(string alici, string adres)
+        => Console.WriteLine($"  [Aras]    📦 {alici} adına '{adres}' adresine gönderildi.");
+}
+
+public class MngKargo : IKargoServisi
+{
+    public string FirmaAdi => "MNG Kargo";
+    public void KargoGonder(string alici, string adres)
+        => Console.WriteLine($"  [MNG]     📦 {alici} adına '{adres}' adresine gönderildi.");
+}
+
+public static class KargoFabrika
+{
+    public static IKargoServisi Olustur(string firma)
+    {
+        switch (firma.ToLower())
+        {
+            case "yurtici": return new YurticiKargo();
+            case "aras":    return new ArasKargo();
+            case "mng":     return new MngKargo();
+            default: throw new ArgumentException($"Bilinmeyen kargo firması: {firma}");
+        }
+    }
+}
+
+// ─────────────────────────────────────────────
+// BAĞLAM — Sipariş Sınıfı
+// ─────────────────────────────────────────────
+public class Siparis
+{
+    private IOdemeStratejisi _odeme;
+    private IKargoServisi    _kargo;
+    public string Urun  { get; }
+    public double Tutar { get; }
+
+    public Siparis(string urun, double tutar)
+    {
+        Urun   = urun;
+        Tutar  = tutar;
+        AppLogger.GetInstance().Log("INFO", $"Sipariş oluşturuldu: {urun} — {tutar:F2} TL");
+    }
+
+    public void OdemeYontemiSec(IOdemeStratejisi strateji)
+    {
+        _odeme = strateji;
+        AppLogger.GetInstance().Log("INFO", $"Ödeme yöntemi seçildi: {strateji.Ad}");
+    }
+
+    public void KargoSec(string firma)
+    {
+        _kargo = KargoFabrika.Olustur(firma);
+        AppLogger.GetInstance().Log("INFO", $"Kargo firması seçildi: {_kargo.FirmaAdi}");
+    }
+
+    public void Tamamla(string musteri, string adres)
+    {
+        Console.WriteLine($"\n  ── Sipariş İşleniyor: {Urun} ──");
+        bool basarili = _odeme.Ode(Tutar);
+        if (basarili)
+        {
+            _kargo.KargoGonder(musteri, adres);
+            AppLogger.GetInstance().Log("INFO", $"Sipariş tamamlandı: {Urun}");
+        }
+    }
+}
+
+// ─────────────────────────────────────────────
+// MAIN
+// ─────────────────────────────────────────────
+class ETicaretProgram
+{
+    static void Main()
+    {
+        Console.WriteLine("╔══════════════════════════════════════╗");
+        Console.WriteLine("║       E-TİCARET SİSTEMİ              ║");
+        Console.WriteLine("╚══════════════════════════════════════╝\n");
+
+        // --- OBSERVER: Stok izleme sistemi kur ---
+        Console.WriteLine("=== Stok Gözlemcileri Ekleniyor ===");
+        StokYoneticisi stok = new StokYoneticisi();
+        stok.GozlemciEkle(new EmailUyari());
+        stok.GozlemciEkle(new SmsUyari());
+        stok.GozlemciEkle(new PanelUyari());
+
+        Console.WriteLine("\n=== Stok Güncellemeleri ===");
+        stok.StokGuncelle("Laptop",      20);
+        stok.StokGuncelle("Kulaklık",    5);   // uyarı tetiklenir
+        stok.StokGuncelle("Mouse",       2);   // uyarı tetiklenir
+
+        // --- SİPARİŞ 1: Kredi kartı + Yurtiçi ---
+        Console.WriteLine("\n=== Sipariş 1 ===");
+        Siparis s1 = new Siparis("Laptop", 45_999.00);
+        s1.OdemeYontemiSec(new KrediKartiOdeme("4242"));
+        s1.KargoSec("yurtici");
+        s1.Tamamla("Ahmet Yılmaz", "Kayseri Merkez");
+
+        // --- SİPARİŞ 2: Kripto + Aras ---
+        Console.WriteLine("\n=== Sipariş 2 ===");
+        Siparis s2 = new Siparis("Kulaklık", 2_499.00);
+        s2.OdemeYontemiSec(new KriptoOdeme());
+        s2.KargoSec("aras");
+        s2.Tamamla("Zeynep Kaya", "İstanbul Kadıköy");
+
+        // --- SİPARİŞ 3: Nakit + MNG ---
+        Console.WriteLine("\n=== Sipariş 3 ===");
+        Siparis s3 = new Siparis("Mouse", 899.00);
+        s3.OdemeYontemiSec(new NakitOdeme());
+        s3.KargoSec("mng");
+        s3.Tamamla("Mehmet Demir", "Ankara Çankaya");
+
+        // --- SINGLETON doğrulama ---
+        Console.WriteLine("\n=== Singleton Doğrulama ===");
+        AppLogger log1 = AppLogger.GetInstance();
+        AppLogger log2 = AppLogger.GetInstance();
+        Console.WriteLine($"  Aynı Logger nesnesi mi? → {object.ReferenceEquals(log1, log2)}");
+
+        // --- FACTORY hata senaryosu ---
+        Console.WriteLine("\n=== Factory Hata Senaryosu ===");
+        try { KargoFabrika.Olustur("dhl"); }
+        catch (ArgumentException ex) { Console.WriteLine($"  Hata yakalandı: {ex.Message}"); }
+
+        Console.WriteLine("\n[Sistem] Tüm işlemler tamamlandı.");
+    }
+}
