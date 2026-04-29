@@ -1,0 +1,334 @@
+// ============================================================
+// PROJE 3: BANKA / ATM SİMÜLASYONU
+// Kullanılan Pattern'lar: Singleton, Factory, Strategy, Observer
+// ============================================================
+
+using System;
+using System.Collections.Generic;
+
+// ─────────────────────────────────────────────
+// SINGLETON — Merkez Bankası Kayıt Sistemi
+// ─────────────────────────────────────────────
+public sealed class BankaKayitSistemi
+{
+    private static BankaKayitSistemi _instance = null;
+    private List<string> _islemGecmisi = new List<string>();
+
+    private BankaKayitSistemi()
+    {
+        Console.WriteLine("[BankaKayıt] Merkezi kayıt sistemi başlatıldı.");
+    }
+
+    public static BankaKayitSistemi GetInstance()
+    {
+        if (_instance == null)
+            _instance = new BankaKayitSistemi();
+        return _instance;
+    }
+
+    public void IslemKaydet(string hesapNo, string aciklama, double tutar)
+    {
+        string kayit = $"  [{DateTime.Now:HH:mm:ss}] [{hesapNo}] {aciklama}: {tutar:+0.00;-0.00} TL";
+        _islemGecmisi.Add(kayit);
+        Console.WriteLine(kayit);
+    }
+
+    public void GecmisiYazdir()
+    {
+        Console.WriteLine("\n── Tüm İşlem Geçmişi ──");
+        foreach (var k in _islemGecmisi)
+            Console.WriteLine(k);
+    }
+}
+
+// ─────────────────────────────────────────────
+// FACTORY — Hesap Türü Üretimi
+// ─────────────────────────────────────────────
+public abstract class BankaHesabi
+{
+    public string HesapNo  { get; protected set; }
+    public string Sahip    { get; protected set; }
+    public double Bakiye   { get; protected set; }
+    public abstract string HesapTuru { get; }
+
+    protected BankaHesabi(string hesapNo, string sahip, double bakiye)
+    {
+        HesapNo = hesapNo;
+        Sahip   = sahip;
+        Bakiye  = bakiye;
+    }
+
+    public virtual bool ParaYatir(double miktar)
+    {
+        Bakiye += miktar;
+        BankaKayitSistemi.GetInstance().IslemKaydet(HesapNo, "Yatırma", miktar);
+        return true;
+    }
+
+    public virtual bool ParaCek(double miktar)
+    {
+        if (Bakiye < miktar)
+        {
+            Console.WriteLine($"  [HATA] Yetersiz bakiye! (Bakiye: {Bakiye:F2} TL)");
+            return false;
+        }
+        Bakiye -= miktar;
+        BankaKayitSistemi.GetInstance().IslemKaydet(HesapNo, "Çekim", -miktar);
+        return true;
+    }
+
+    public override string ToString()
+        => $"{HesapTuru} | {HesapNo} | Sahip: {Sahip} | Bakiye: {Bakiye:F2} TL";
+}
+
+public class VadesizHesap : BankaHesabi
+{
+    public override string HesapTuru => "Vadesiz";
+    public VadesizHesap(string no, string sahip, double bakiye) : base(no, sahip, bakiye) { }
+}
+
+public class VadeliHesap : BankaHesabi
+{
+    public int VadeGunu { get; }
+    public override string HesapTuru => $"Vadeli ({VadeGunu} gün)";
+
+    public VadeliHesap(string no, string sahip, double bakiye, int vadeGunu)
+        : base(no, sahip, bakiye)
+    {
+        VadeGunu = vadeGunu;
+    }
+
+    public override bool ParaCek(double miktar)
+    {
+        Console.WriteLine($"  [Vadeli] Vade dolmadan çekim için %5 ceza uygulandı.");
+        double ceza = miktar * 0.05;
+        return base.ParaCek(miktar + ceza);
+    }
+}
+
+public class KrediHesabi : BankaHesabi
+{
+    public double KrediLimiti { get; }
+    public override string HesapTuru => "Kredi";
+
+    public KrediHesabi(string no, string sahip, double limit)
+        : base(no, sahip, limit)
+    {
+        KrediLimiti = limit;
+    }
+
+    public override bool ParaCek(double miktar)
+    {
+        if (Bakiye < miktar)
+        {
+            Console.WriteLine($"  [Kredi] Kredi limiti aşılamaz! (Kalan limit: {Bakiye:F2} TL)");
+            return false;
+        }
+        Bakiye -= miktar;
+        BankaKayitSistemi.GetInstance().IslemKaydet(HesapNo, "Kredi Kullanımı", -miktar);
+        return true;
+    }
+}
+
+public static class HesapFabrika
+{
+    private static int _sayac = 1000;
+
+    public static BankaHesabi Olustur(string tip, string sahip, double baslangicBakiye = 0, int vade = 0)
+    {
+        string hesapNo = $"TR{++_sayac:D8}";
+        switch (tip.ToLower())
+        {
+            case "vadesiz": return new VadesizHesap(hesapNo, sahip, baslangicBakiye);
+            case "vadeli":  return new VadeliHesap(hesapNo, sahip, baslangicBakiye, vade > 0 ? vade : 90);
+            case "kredi":   return new KrediHesabi(hesapNo, sahip, baslangicBakiye);
+            default: throw new ArgumentException($"Bilinmeyen hesap türü: {tip}");
+        }
+    }
+}
+
+// ─────────────────────────────────────────────
+// STRATEGY — Faiz Hesaplama
+// ─────────────────────────────────────────────
+public interface IFaizStratejisi
+{
+    double FaizHesapla(double bakiye, int gun);
+    string Ad { get; }
+}
+
+public class BasitFaiz : IFaizStratejisi
+{
+    private double _yillikOran;
+    public string Ad => $"Basit Faiz (%{_yillikOran * 100:F0} yıllık)";
+
+    public BasitFaiz(double yillikOran) { _yillikOran = yillikOran; }
+
+    public double FaizHesapla(double bakiye, int gun)
+        => Math.Round(bakiye * _yillikOran * gun / 365, 2);
+}
+
+public class BilesikFaiz : IFaizStratejisi
+{
+    private double _yillikOran;
+    public string Ad => $"Bileşik Faiz (%{_yillikOran * 100:F0} yıllık)";
+
+    public BilesikFaiz(double yillikOran) { _yillikOran = yillikOran; }
+
+    public double FaizHesapla(double bakiye, int gun)
+    {
+        double son = bakiye * Math.Pow(1 + _yillikOran / 365, gun);
+        return Math.Round(son - bakiye, 2);
+    }
+}
+
+public class EnflasyonKorumali : IFaizStratejisi
+{
+    private double _enflasyon;
+    public string Ad => $"Enflasyon Korumalı (%{_enflasyon * 100:F0} + 2)";
+
+    public EnflasyonKorumali(double enflasyon) { _enflasyon = enflasyon; }
+
+    public double FaizHesapla(double bakiye, int gun)
+    {
+        double toplamOran = _enflasyon + 0.02;
+        return Math.Round(bakiye * toplamOran * gun / 365, 2);
+    }
+}
+
+// ─────────────────────────────────────────────
+// OBSERVER — İşlem Bildirim Sistemi
+// ─────────────────────────────────────────────
+public interface IBankaGozlemci
+{
+    void IslemBildirimi(string hesapNo, string islemTip, double tutar, double yeniBakiye);
+}
+
+public class MusteriSmsGozlemci : IBankaGozlemci
+{
+    public void IslemBildirimi(string hesapNo, string islemTip, double tutar, double yeniBakiye)
+        => Console.WriteLine($"  [SMS] 📱 {hesapNo}: {islemTip} {Math.Abs(tutar):F2} TL. Bakiye: {yeniBakiye:F2} TL");
+}
+
+public class SuphelihIslemGozlemci : IBankaGozlemci
+{
+    private double _esik;
+    public SuphelihIslemGozlemci(double esik) { _esik = esik; }
+    public void IslemBildirimi(string hesapNo, string islemTip, double tutar, double yeniBakiye)
+    {
+        if (Math.Abs(tutar) >= _esik)
+            Console.WriteLine($"  [GÜVENLİK] 🔴 Şüpheli işlem! {hesapNo} — {Math.Abs(tutar):F2} TL {islemTip}");
+    }
+}
+
+public class BankaciPanelGozlemci : IBankaGozlemci
+{
+    public void IslemBildirimi(string hesapNo, string islemTip, double tutar, double yeniBakiye)
+        => Console.WriteLine($"  [Panel] 🖥  Banka paneli güncellendi: {hesapNo} → {islemTip}");
+}
+
+// ─────────────────────────────────────────────
+// BAĞLAM — ATM / Banka İşlem Merkezi
+// ─────────────────────────────────────────────
+public class IslemMerkezi
+{
+    private List<IBankaGozlemci> _gozlemciler = new List<IBankaGozlemci>();
+    private IFaizStratejisi _faizStr;
+
+    public void GozlemciEkle(IBankaGozlemci g) => _gozlemciler.Add(g);
+
+    public void FaizStratejisiSec(IFaizStratejisi strateji)
+    {
+        _faizStr = strateji;
+        Console.WriteLine($"  Faiz stratejisi: {strateji.Ad}");
+    }
+
+    public void ParaYatir(BankaHesabi hesap, double miktar)
+    {
+        if (hesap.ParaYatir(miktar))
+            foreach (var g in _gozlemciler)
+                g.IslemBildirimi(hesap.HesapNo, "Yatırma", miktar, hesap.Bakiye);
+    }
+
+    public void ParaCek(BankaHesabi hesap, double miktar)
+    {
+        double oncekiBakiye = hesap.Bakiye;
+        if (hesap.ParaCek(miktar))
+            foreach (var g in _gozlemciler)
+                g.IslemBildirimi(hesap.HesapNo, "Çekim", -miktar, hesap.Bakiye);
+    }
+
+    public void FaizUygula(BankaHesabi hesap, int gun)
+    {
+        if (_faizStr == null) { Console.WriteLine("Faiz stratejisi seçilmedi!"); return; }
+        double faiz = _faizStr.FaizHesapla(hesap.Bakiye, gun);
+        Console.WriteLine($"\n  {_faizStr.Ad} — {gun} gün için faiz: {faiz:F2} TL");
+        hesap.ParaYatir(faiz);
+    }
+}
+
+// ─────────────────────────────────────────────
+// MAIN
+// ─────────────────────────────────────────────
+class BankaProgram
+{
+    static void Main()
+    {
+        Console.WriteLine("╔══════════════════════════════════════╗");
+        Console.WriteLine("║       BANKA / ATM SİMÜLASYONU        ║");
+        Console.WriteLine("╚══════════════════════════════════════╝\n");
+
+        // FACTORY: Hesaplar oluştur
+        Console.WriteLine("=== Hesaplar Oluşturuluyor ===");
+        BankaHesabi h1 = HesapFabrika.Olustur("vadesiz", "Ahmet Yılmaz", 10_000);
+        BankaHesabi h2 = HesapFabrika.Olustur("vadeli",  "Zeynep Kaya",  50_000, 180);
+        BankaHesabi h3 = HesapFabrika.Olustur("kredi",   "Mehmet Demir", 25_000);
+
+        Console.WriteLine($"  {h1}");
+        Console.WriteLine($"  {h2}");
+        Console.WriteLine($"  {h3}");
+
+        // OBSERVER: Gözlemci ekle
+        Console.WriteLine("\n=== Bildirim Sistemi Kuruluyor ===");
+        IslemMerkezi atm = new IslemMerkezi();
+        atm.GozlemciEkle(new MusteriSmsGozlemci());
+        atm.GozlemciEkle(new SuphelihIslemGozlemci(20_000)); // 20K üzeri şüpheli
+        atm.GozlemciEkle(new BankaciPanelGozlemci());
+
+        // Normal işlemler
+        Console.WriteLine("\n=== İşlemler ===");
+        atm.ParaYatir(h1, 5_000);
+        atm.ParaCek(h1, 2_000);
+        atm.ParaCek(h1, 50_000); // yetersiz bakiye
+
+        // Büyük işlem — şüpheli uyarısı tetiklenir
+        Console.WriteLine();
+        atm.ParaYatir(h2, 30_000); // 30K üzeri → şüpheli uyarı
+
+        // Vadeli hesaptan erken çekim — ceza uygulanır
+        Console.WriteLine();
+        atm.ParaCek(h2, 10_000);
+
+        // STRATEGY: Farklı faiz hesaplamaları
+        Console.WriteLine("\n=== Faiz Hesaplamaları ===");
+        atm.FaizStratejisiSec(new BasitFaiz(0.45));
+        atm.FaizUygula(h1, 30);
+
+        atm.FaizStratejisiSec(new BilesikFaiz(0.45));
+        atm.FaizUygula(h2, 180);
+
+        atm.FaizStratejisiSec(new EnflasyonKorumali(0.60));
+        atm.FaizUygula(h3, 90);
+
+        // SINGLETON doğrulama
+        Console.WriteLine("\n=== Singleton Doğrulama ===");
+        var kayit1 = BankaKayitSistemi.GetInstance();
+        var kayit2 = BankaKayitSistemi.GetInstance();
+        Console.WriteLine($"  Aynı kayıt sistemi mi? → {object.ReferenceEquals(kayit1, kayit2)}");
+        kayit1.GecmisiYazdir();
+
+        // FACTORY hata
+        Console.WriteLine("\n=== Factory Hata Senaryosu ===");
+        try { HesapFabrika.Olustur("doviz", "Test Kullanıcı"); }
+        catch (ArgumentException ex) { Console.WriteLine($"  Hata: {ex.Message}"); }
+    }
+}
