@@ -1,0 +1,162 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+from sklearn.datasets import load_digits
+from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import accuracy_score, confusion_matrix, ConfusionMatrixDisplay
+
+print('Kütüphaneler başarıyla yüklendi.')
+
+
+# Veri setini yükle
+digits = load_digits()
+
+X = digits.data    # Öznitelikler: 8x8 piksel görüntüler düzleştirilmiş → (1797, 64)
+y = digits.target  # Etiketler: 0-9 arası rakamlar
+
+print(f'Toplam örnek sayısı : {X.shape[0]}')
+print(f'Öznitelik sayısı    : {X.shape[1]}  (8x8 piksel = 64 değer)')
+print(f'Sınıflar            : {np.unique(y)}')
+
+# Her sınıftan kaç örnek var?
+for sinif in np.unique(y):
+    print(f'  Rakam {sinif}: {np.sum(y == sinif)} örnek')
+
+
+
+
+fig, axes = plt.subplots(2, 10, figsize=(15, 4))
+fig.suptitle('Veri Setinden Örnek Görüntüler (Her Rakamdan 2 Adet)', fontsize=13)
+
+for rakam in range(10):
+    # Bu rakama ait ilk iki örneği bul
+    indeksler = np.where(y == rakam)[0][:2]
+    for satir, idx in enumerate(indeksler):
+        ax = axes[satir, rakam]
+        ax.imshow(digits.images[idx], cmap='gray_r')
+        ax.set_title(f'Rakam: {rakam}', fontsize=8)
+        ax.axis('off')
+
+plt.tight_layout()
+plt.show()
+
+
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y,
+    test_size=0.20,      # %20 test, %80 eğitim
+    random_state=42,     #
+    Tekrarlanabilirlik için sabit tohum
+    stratify=y           # Her sınıftan dengeli dağılım
+)
+
+print(f'Eğitim seti boyutu : {X_train.shape[0]} örnek')
+print(f'Test seti boyutu   : {X_test.shape[0]} örnek')
+
+
+
+
+
+
+
+
+# k=3: En yakın 3 komşuya bak
+model = KNeighborsClassifier(n_neighbors=3)
+
+# Modeli eğitim verisiyle eğit
+model.fit(X_train, y_train)
+
+print('Model eğitimi tamamlandı!')
+
+
+
+
+
+
+
+
+
+y_pred = model.predict(X_test)
+
+print(f'İlk 10 gerçek etiket : {y_test[:10]}')
+print(f'İlk 10 tahmin        : {y_pred[:10]}')
+
+
+
+
+
+acc = accuracy_score(y_test, y_pred)
+dogru_sayi = int(acc * len(y_test))
+yanlis_sayi = len(y_test) - dogru_sayi
+
+print(f'Test seti örnek sayısı : {len(y_test)}')
+print(f'Doğru tahmin sayısı    : {dogru_sayi}')
+print(f'Yanlış tahmin sayısı   : {yanlis_sayi}')
+print(f'Accuracy               : %{acc*100:.2f}')
+
+
+
+
+
+
+cm = confusion_matrix(y_test, y_pred)
+
+fig, ax = plt.subplots(figsize=(9, 7))
+disp = ConfusionMatrixDisplay(confusion_matrix=cm,
+                              display_labels=digits.target_names)
+disp.plot(ax=ax, cmap='Blues', colorbar=True)
+ax.set_title('Confusion Matrix – KNN (k=3) | Digits Veri Seti', fontsize=13, pad=15)
+plt.tight_layout()
+plt.show()
+
+print('\nSatır = Gerçek sınıf | Sütun = Tahmin edilen sınıf')
+print('Köşegen = Doğru tahminler | Köşegen dışı = Karışıklıklar')
+
+
+
+
+
+
+
+
+
+# Köşegen dışındaki en yüksek değerleri bul
+cm_kopyasi = cm.copy().astype(float)
+np.fill_diagonal(cm_kopyasi, 0)  # Köşegeni sıfırla
+
+print('En çok karıştırılan çiftler:')
+print('-' * 45)
+
+# En fazla 5 karışıklığı göster
+for _ in range(5):
+    max_idx = np.unravel_index(np.argmax(cm_kopyasi), cm_kopyasi.shape)
+    gercek, tahmin = max_idx
+    sayi = int(cm[gercek, tahmin])
+    if sayi == 0:
+        break
+    print(f'  Gerçek: {gercek}  →  Tahmin: {tahmin}  |  {sayi} kez karıştırılmış')
+    cm_kopyasi[gercek, tahmin] = 0
+
+print('-' * 45)
+print('\n📝 Yorum: Bu rakamlar görsel olarak birbirine benzediğinden')
+print('   model zaman zaman yanılıyor. Daha fazla eğitim verisi')
+print('   veya farklı k değerleri bu hatayı azaltabilir.')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
